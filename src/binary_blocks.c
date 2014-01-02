@@ -102,14 +102,15 @@ typedef struct gridRow_s
 
 #define MONTH_COLS 4
 #define DAY_COLS 5
-#define HOUR_COLS 4
+#define HOUR_COLS_12H 4
+#define HOUR_COLS_24H 5
 #define MINUTE_COLS 6
 #define SECOND_COLS 6
 
-gridCell_t _hour_cells[HOUR_COLS];
+gridCell_t _hour_cells[HOUR_COLS_24H];
 gridCell_t _minute_cells[MINUTE_COLS];
 
-gridRow_t hour_row = { _hour_cells, HOUR_COLS, 0 };
+gridRow_t hour_row = { _hour_cells, HOUR_COLS_24H, 0 };
 gridRow_t minute_row = { _minute_cells, MINUTE_COLS, 0 };
 
 #ifdef DO_DATE
@@ -208,7 +209,8 @@ void refresh_grid(const PblTm* t, unsigned u)
   if ((u & HOUR_UNIT) != 0)
   {
     unsigned hr = (unsigned)t->tm_hour;
-    if (hr > 12) { hr -= 12; }
+
+    if (!clock_is_24h_style() && hr > 12) { hr -= 12; }
 
     refresh_grid_row(&hour_row, hr);
   }
@@ -253,6 +255,10 @@ void handle_init(AppContextRef ctx) {
   text_layer_init(&timeBG, GRect(TIME_GRID_X, TIME_GRID_Y, GRID_OUTER_WIDTH, TIME_GRID_OUTER_HEIGHT));
   text_layer_set_background_color(&timeBG, GColorClear);
   layer_add_child(&window.layer, &timeBG.layer);
+
+  // Set up 12H clock if that's what the user wants
+  if ( !clock_is_24h_style() )
+	hour_row.cellCount = HOUR_COLS_12H;
 
   // Init cells
   init_grid_row(&hour_row, &timeBG.layer, GRID_ROW_1_Y);
