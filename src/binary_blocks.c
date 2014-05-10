@@ -1,39 +1,11 @@
-#include "pebble_os.h"
-#include "pebble_app.h"
-#include "pebble_fonts.h"
-
+#include <pebble.h>
+#include <time.h>
+  
 //#define DO_SECONDS
 #define DO_DATE
 #define AGGRESSIVE_CACHING
 //#define LEET_EDITION
 //#define VERBOSE_TITLES
-
-#if defined(DO_DATE) && defined(VERBOSE_TITLES)
-# define APP_TITLE_DATE_ED " +Cal"
-#else 
-# define APP_TITLE_DATE_ED
-#endif
-
-#if defined(DO_SECONDS) && defined(VERBOSE_TITLES)
-# define APP_TITLE_SECONDS_ED " +Secs"
-#else
-# define APP_TITLE_SECONDS_ED
-#endif
-
-#ifdef LEET_EDITION
-# define APP_TITLE_BASE "0x539 L33T Edition"
-# define MY_UUID { 0x55, 0x39, 0xD3, 0x1B, 0x06, 0x05, 0x4B, 0xF4, 0x86, 0x1A, 0x4A, 0x3D, 0xB9, 0xAC, 0xA8, 0xE3 }
-#else
-# define APP_TITLE_BASE "0x539"
-# define MY_UUID { 0xa1, 0xbc, 0xc4, 0xc7, 0x34, 0xc0, 0x4b, 0xa6, 0x8e, 0x90, 0x30, 0xa9, 0xe9, 0x50, 0x9b, 0x46 }
-#endif
-
-
-PBL_APP_INFO(MY_UUID,
-             APP_TITLE_BASE APP_TITLE_DATE_ED APP_TITLE_SECONDS_ED, "GeekyPanda",
-             1, 0, /* App version */
-	     RESOURCE_ID_IMAGE_MENU_ICON_COUNTDOWN,
-             APP_INFO_WATCH_FACE);
 
 #define FACE_FONT_KEY 		FONT_KEY_GOTHIC_14
 
@@ -78,18 +50,18 @@ PBL_APP_INFO(MY_UUID,
 # define DATE_GRID_Y		(SCREEN_PADDING)
 #endif
 
-Window window;
+Window* window;
 
 #ifdef DO_DATE
-TextLayer dateBG;
+TextLayer* dateBG;
 #endif
 
-TextLayer timeBG;
+TextLayer* timeBG;
 
 typedef struct gridCell_s
 {
-  TextLayer textLayer;
-  InverterLayer inverterLayer;
+  TextLayer* textLayer;
+  InverterLayer* inverterLayer;
   char text[4];
 } gridCell_t;
 
@@ -142,22 +114,28 @@ void init_grid_cell(gridCell_t* cell, Layer* parentLayer, GRect rect, unsigned b
 #endif
 
   // Init the text layer
-  text_layer_init(&cell->textLayer, rect);
+  cell->textLayer = text_layer_create(rect);
 #ifdef LEET_EDITION
-  text_layer_set_text_alignment(&cell->textLayer, GTextAlignmentCenter);
+  text_layer_set_text_alignment(cell->textLayer, GTextAlignmentCenter);
 #else
-  text_layer_set_text_alignment(&cell->textLayer, GTextAlignmentRight);
+  text_layer_set_text_alignment(cell->textLayer, GTextAlignmentRight);
 #endif
-  text_layer_set_font(&cell->textLayer, fonts_get_system_font(FACE_FONT_KEY));
-  text_layer_set_background_color(&cell->textLayer, GColorClear);
-  text_layer_set_text_color(&cell->textLayer, GColorWhite);
-  text_layer_set_text(&cell->textLayer, cell->text);
-  layer_add_child(parentLayer, &cell->textLayer.layer);
+  text_layer_set_font(cell->textLayer, fonts_get_system_font(FACE_FONT_KEY));
+  text_layer_set_background_color(cell->textLayer, GColorClear);
+  text_layer_set_text_color(cell->textLayer, GColorWhite);
+  text_layer_set_text(cell->textLayer, cell->text);
+  layer_add_child(parentLayer, (Layer *)cell->textLayer);
 
   // Init the inverter layer
-  inverter_layer_init(&cell->inverterLayer, GRect(0, 0, rect.size.w, rect.size.h));
-  layer_set_hidden(&cell->inverterLayer.layer, true);
-  layer_add_child(&cell->textLayer.layer, &cell->inverterLayer.layer);
+  cell->inverterLayer = inverter_layer_create(GRect(0, 0, rect.size.w, rect.size.h));
+  layer_set_hidden((Layer *)cell->inverterLayer, true);
+  layer_add_child((Layer *)cell->textLayer, (Layer *)cell->inverterLayer);
+}
+
+void destroy_grid_cell(gridCell_t* cell)
+{
+  text_layer_destroy(cell->textLayer);
+  inverter_layer_destroy(cell->inverterLayer);
 }
 
 void set_grid_cell_enabled(gridCell_t* cell, bool should_enable)
@@ -166,7 +144,7 @@ void set_grid_cell_enabled(gridCell_t* cell, bool should_enable)
   cell->text[0] = '0' + should_enable;
 #endif
 
-  layer_set_hidden(&cell->inverterLayer.layer, !should_enable);
+  layer_set_hidden((Layer *)cell->inverterLayer, !should_enable);
   // dirty is set automatically
 }
 
@@ -181,6 +159,14 @@ void init_grid_row(gridRow_t* row, Layer* parentLayer, unsigned y)
     init_grid_cell(&row->cells[i], parentLayer, GRect(x - GRID_CELL_WIDTH, y, GRID_CELL_WIDTH - 1, GRID_CELL_HEIGHT), i);
 
     x -= GRID_CELL_WIDTH;
+  }
+}
+
+void destroy_grid_row(gridRow_t* row)
+{
+  for (unsigned i = 0; i < row->cellCount; ++i)
+  {
+    destroy_grid_cell(&row->cells[i]);
   }
 }
 
@@ -204,7 +190,7 @@ void refresh_grid_row(gridRow_t* row, unsigned b)
   row->enabledStates = b;
 }
 
-void refresh_grid(const PblTm* t, unsigned u)
+void refresh_grid(const struct tm *t, TimeUnits u)
 {
   if ((u & HOUR_UNIT) != 0)
   {
@@ -245,66 +231,74 @@ void refresh_grid(const PblTm* t, unsigned u)
 }
 
 
-void handle_init(AppContextRef ctx) {
+void handle_init() {
 
-  window_init(&window, "Binary Blocks");
-  window_stack_push(&window, true /* Animated */);
-  window_set_background_color(&window, GColorBlack);
+  window = window_create();
+  window_stack_push(window, true /* Animated */);
+  window_set_background_color(window, GColorBlack);
 
   // TIME background layer
-  text_layer_init(&timeBG, GRect(TIME_GRID_X, TIME_GRID_Y, GRID_OUTER_WIDTH, TIME_GRID_OUTER_HEIGHT));
-  text_layer_set_background_color(&timeBG, GColorClear);
-  layer_add_child(&window.layer, &timeBG.layer);
+  timeBG = text_layer_create(GRect(TIME_GRID_X, TIME_GRID_Y, GRID_OUTER_WIDTH, TIME_GRID_OUTER_HEIGHT));
+  text_layer_set_background_color(timeBG, GColorClear);
+  layer_add_child((Layer *)window, (Layer *)timeBG);
 
   // Set up 12H clock if that's what the user wants
   if ( !clock_is_24h_style() )
 	hour_row.cellCount = HOUR_COLS_12H;
 
   // Init cells
-  init_grid_row(&hour_row, &timeBG.layer, GRID_ROW_1_Y);
-  init_grid_row(&minute_row, &timeBG.layer, GRID_ROW_2_Y);
+  init_grid_row(&hour_row, (Layer *)timeBG, GRID_ROW_1_Y);
+  init_grid_row(&minute_row, (Layer *)timeBG, GRID_ROW_2_Y);
 
 #ifdef DO_SECONDS
-  init_grid_row(&second_row, &timeBG.layer, GRID_ROW_3_Y);
+  init_grid_row(&second_row, (Layer *)timeBG, GRID_ROW_3_Y);
 #endif
 
 #ifdef DO_DATE
   // DATE background layer
-  text_layer_init(&dateBG, GRect(DATE_GRID_X, DATE_GRID_Y, GRID_OUTER_WIDTH, DATE_GRID_OUTER_HEIGHT));
-  text_layer_set_background_color(&dateBG, GColorClear);
-  layer_add_child(&window.layer, &dateBG.layer);
+  dateBG = text_layer_create(GRect(DATE_GRID_X, DATE_GRID_Y, GRID_OUTER_WIDTH, DATE_GRID_OUTER_HEIGHT));
+  text_layer_set_background_color(dateBG, GColorClear);
+  layer_add_child((Layer *)window, (Layer *)dateBG);
 
-  init_grid_row(&month_row, &dateBG.layer, GRID_ROW_1_Y);
-  init_grid_row(&day_row, &dateBG.layer, GRID_ROW_2_Y);
+  init_grid_row(&month_row, (Layer *)dateBG, GRID_ROW_1_Y);
+  init_grid_row(&day_row, (Layer *)dateBG, GRID_ROW_2_Y);
 #endif
 
-  PblTm time_now;
-  get_time(&time_now);
-  refresh_grid(&time_now, ~0U);
+  time_t time_now;
+  time(&time_now);
+  refresh_grid(localtime(&time_now), (TimeUnits)~0U);
 }
 
-void handle_deinit(AppContextRef ctx) {
-  (void)ctx;
-}
+void handle_deinit() {
+#ifdef DO_DATE
+  destroy_grid_row(&month_row);
+  destroy_grid_row(&day_row);
+#endif
 
-void handle_tick(AppContextRef ctx, PebbleTickEvent* t) 
-{
-  refresh_grid(t->tick_time, t->units_changed);
-}
+  // Init cells
+  destroy_grid_row(&hour_row);
+  destroy_grid_row(&minute_row);
 
-void pbl_main(void *params) {
-
-  PebbleAppHandlers handlers = {
-    .init_handler = &handle_init,
-    .deinit_handler = &handle_deinit,
-    .tick_info = {
-      .tick_handler = &handle_tick,
 #ifdef DO_SECONDS
-      .tick_units = SECOND_UNIT
-#else
-      .tick_units = MINUTE_UNIT
+  destroy_grid_row(&second_row);
 #endif
-    }
-  };
-  app_event_loop(params, &handlers);
+
+  text_layer_destroy(timeBG);
+  
+  window_destroy(window);
+}
+
+void handle_tick(struct tm *tick_time, TimeUnits units_changed) 
+{
+  refresh_grid(tick_time, units_changed);
+}
+
+int main() {
+  tick_timer_service_subscribe(
+    SECOND_UNIT | MINUTE_UNIT, 
+    handle_tick);
+  handle_init();
+  app_event_loop();
+  handle_deinit();
+  return 0;
 }
