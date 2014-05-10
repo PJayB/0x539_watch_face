@@ -14,7 +14,7 @@
 
 #define SCREEN_PADDING		5
 
-#define GRID_COLS 		6
+#define GRID_COLS 		    6
 
 #define GRID_CELL_WIDTH 	(SCREEN_WIDTH / GRID_COLS)
 
