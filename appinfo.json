@@ -1,0 +1,25 @@
+{
+    "longName": "0x539",
+    "versionCode": 1,
+    "shortName": "0x539",
+    "capabilities": [
+        ""
+    ],
+    "resources": {
+        "media": [
+            {
+                "type": "png",
+                "file": "images/menu_icon_countdown.png",
+                "name": "IMAGE_MENU_ICON_COUNTDOWN",
+                "menuIcon": true
+            }
+        ]
+    },
+    "versionLabel": "1.0.1",
+    "watchapp": {
+        "watchface": true
+    },
+    "uuid": "06adefb7-332d-4ff1-97bc-0880201d1b1b",
+    "appKeys": {},
+    "companyName": "GeekyPanda"
+}
